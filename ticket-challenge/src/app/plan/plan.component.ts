@@ -5,8 +5,13 @@ import {
   ElementRef,
   NgZone,
   OnDestroy,
+  OnInit,
   ViewChild,
 } from '@angular/core';
+import { SeatMapService } from '../seat-map.service';
+import { ActivatedRoute, Router } from '@angular/router';
+import { take } from 'rxjs';
+import { SeatState } from '../models/seat-state';
 
 const GRID = 15; // 15x15
 const TOTAL_CELLS = GRID * GRID;
@@ -17,7 +22,7 @@ const TOTAL_CELLS = GRID * GRID;
   styleUrls: ['./plan.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class PlanComponent implements AfterViewInit, OnDestroy {
+export class PlanComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('canvas', { static: true })
   canvasRef!: ElementRef<HTMLCanvasElement>;
 
@@ -32,12 +37,29 @@ export class PlanComponent implements AfterViewInit, OnDestroy {
 
   private imgFreeSeat = new Image();
   private imgReservedSeat = new Image();
+  private imgSelectedSeat = new Image();
 
-  constructor(private ngZone: NgZone) {}
+  constructor(
+    private ngZone: NgZone,
+    private route: ActivatedRoute,
+    private seatMapService: SeatMapService
+  ) {}
+
+  ngOnInit() {
+    this.route.paramMap.pipe(take(1)).subscribe((params) => {
+      const mapId = params.get('id');
+
+      if (mapId) {
+        const map = this.seatMapService.getSeatMap(mapId);
+        this.state.set(map.flat());
+      }
+    });
+  }
 
   ngAfterViewInit(): void {
     this.imgFreeSeat.src = 'assets/icon/free-seat.svg';
     this.imgReservedSeat.src = 'assets/icon/reserved-seat.svg';
+    this.imgSelectedSeat.src = 'assets/icon/selected-seat.svg';
 
     const canvas = this.canvasRef.nativeElement;
     const ctx = canvas.getContext('2d');
@@ -52,9 +74,7 @@ export class PlanComponent implements AfterViewInit, OnDestroy {
       this.setupResizeObserver();
       // initial sizing + draw
       this.onResize();
-      this.imgFreeSeat.onload = this.imgReservedSeat.onload = () => {
-        this.onResize(); // redraw once images are ready
-      };
+      this.imgFreeSeat.onload = () => this.onResize(); // redraw once images are ready
     });
   }
 
@@ -99,10 +119,15 @@ export class PlanComponent implements AfterViewInit, OnDestroy {
 
     const idx = row * GRID + col;
 
-    this.state[idx] = this.state[idx] ? 0 : 1;
+    if (this.state[idx] !== SeatState.RESERVED) {
+      this.state[idx] =
+        this.state[idx] === SeatState.FREE
+          ? SeatState.SELECTED
+          : SeatState.FREE;
 
-    // redraw only this cell
-    this.drawCell(row, col);
+      // redraw only this cell
+      this.drawCell(row, col);
+    }
   }
 
   // ---------- Resizing & DPI ----------
@@ -177,9 +202,6 @@ export class PlanComponent implements AfterViewInit, OnDestroy {
         this.drawCellFill(row, col);
       }
     }
-
-    // draw grid lines on top once for crispness
-    // this.drawGridLines(cssW, cssH);
   }
 
   // Draws only a single cell (fill + border)
@@ -217,10 +239,16 @@ export class PlanComponent implements AfterViewInit, OnDestroy {
     const y = row * cellH;
 
     const idx = row * GRID + col;
-    const isFree = this.state[idx] === 1;
 
     // fill style
-    const img = isFree ? this.imgReservedSeat : this.imgFreeSeat;
+    const cellState = this.state[idx] as SeatState;
+    let img: HTMLImageElement;
+    const imageMap: Record<SeatState, HTMLImageElement> = {
+      [SeatState.FREE]: this.imgFreeSeat,
+      [SeatState.RESERVED]: this.imgReservedSeat,
+      [SeatState.SELECTED]: this.imgSelectedSeat,
+    };
+    img = imageMap[cellState];
     this.ctx.drawImage(img, x, y, cellW, cellH);
   }
 
