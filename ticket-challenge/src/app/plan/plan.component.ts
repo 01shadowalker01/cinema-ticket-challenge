@@ -30,13 +30,13 @@ export class PlanComponent implements AfterViewInit {
   private destroyed = false;
 
   private imgFreeSeat = new Image();
-  private imgFilledSeat = new Image();
+  private imgReservedSeat = new Image();
 
   constructor(private ngZone: NgZone) {}
 
   ngAfterViewInit(): void {
     this.imgFreeSeat.src = 'assets/icon/free-seat.svg';
-    this.imgFilledSeat.src = 'assets/icon/filled-seat.svg';
+    this.imgReservedSeat.src = 'assets/icon/reserved-seat.svg';
 
     const canvas = this.canvasRef.nativeElement;
     const ctx = canvas.getContext('2d');
@@ -51,7 +51,7 @@ export class PlanComponent implements AfterViewInit {
       this.setupResizeObserver();
       // initial sizing + draw
       this.onResize();
-      this.imgFreeSeat.onload = this.imgFilledSeat.onload = () => {
+      this.imgFreeSeat.onload = this.imgReservedSeat.onload = () => {
         this.onResize(); // redraw once images are ready
       };
     });
@@ -219,7 +219,7 @@ export class PlanComponent implements AfterViewInit {
     const isFree = this.state[idx] === 1;
 
     // fill style
-    const img = isFree ? this.imgFilledSeat : this.imgFreeSeat;
+    const img = isFree ? this.imgReservedSeat : this.imgFreeSeat;
     this.ctx.drawImage(img, x, y, cellW, cellH);
   }
 }
