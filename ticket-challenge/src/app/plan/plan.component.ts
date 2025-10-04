@@ -47,6 +47,7 @@ export class PlanComponent implements AfterViewInit {
 
     // Run non-Angular to avoid change detection
     this.ngZone.runOutsideAngular(() => {
+      this.setupPointerHandler();
       this.setupResizeObserver();
       // initial sizing + draw
       this.onResize();
@@ -54,6 +55,53 @@ export class PlanComponent implements AfterViewInit {
         this.onResize(); // redraw once images are ready
       };
     });
+  }
+
+  // ---------- Pointer handling ----------
+  // Use a bound handler property so we can remove it on destroy
+  private pointerHandler = (ev: PointerEvent) => {
+    // handle only primary pointer
+    if (ev.isPrimary === false) return;
+    // compute row/col -> toggle state and redraw only that cell
+    this.handlePointer(ev);
+  };
+
+  private setupPointerHandler() {
+    const canvas = this.canvasRef.nativeElement;
+    // Use pointerdown to support touch + mouse consistently
+    canvas.addEventListener('pointerdown', this.pointerHandler, {
+      passive: true,
+    });
+  }
+
+  private handlePointer(ev: PointerEvent) {
+    const canvas = this.canvasRef.nativeElement;
+    const rect = canvas.getBoundingClientRect();
+
+    // Convert client coordinates to CSS (logical) canvas coordinates.
+    // Because we call ctx.setTransform(dpr,0,0,dpr,0,0) when sizing,
+    // canvas drawing coordinates are in CSS pixels and we can use CSS coords here.
+    const xCss = ev.clientX - rect.left;
+    const yCss = ev.clientY - rect.top;
+
+    // cell size in CSS pixels
+    const cellWidthCss = rect.width / GRID;
+    const cellHeightCss = rect.height / GRID;
+
+    // compute col & row (careful with edge cases when pointer is exactly at right/bottom edge)
+    let col = Math.floor(xCss / cellWidthCss);
+    let row = Math.floor(yCss / cellHeightCss);
+    if (col < 0) col = 0;
+    if (row < 0) row = 0;
+    if (col >= GRID) col = GRID - 1;
+    if (row >= GRID) row = GRID - 1;
+
+    const idx = row * GRID + col;
+
+    this.state[idx] = this.state[idx] ? 0 : 1;
+
+    // redraw only this cell
+    this.drawCell(row, col);
   }
 
   // ---------- Resizing & DPI ----------
@@ -108,5 +156,70 @@ export class PlanComponent implements AfterViewInit {
 
     // Set crisp borders regardless of dpr
     this.ctx.lineWidth = 1 / this.dpr;
+    this.fullRender();
+  }
+
+  // ---------- Rendering ----------
+  // Full render draws fills for all cells and then gridlines on top
+  private fullRender() {
+    const canvas = this.canvasRef.nativeElement;
+    const rect = canvas.getBoundingClientRect();
+    const cssW = rect.width;
+    const cssH = rect.height;
+
+    // clear entire canvas (in CSS pixels; transform will scale)
+    this.ctx.clearRect(0, 0, cssW, cssH);
+
+    // draw all cells
+    for (let row = 0; row < GRID; row++) {
+      for (let col = 0; col < GRID; col++) {
+        this.drawCellFill(row, col);
+      }
+    }
+
+    // draw grid lines on top once for crispness
+    // this.drawGridLines(cssW, cssH);
+  }
+
+  // Draws only a single cell (fill + border)
+  private drawCell(row: number, col: number) {
+    const canvas = this.canvasRef.nativeElement;
+    const rect = canvas.getBoundingClientRect();
+    const cssW = rect.width;
+    const cssH = rect.height;
+
+    // compute cell geometry in CSS pixels
+    const cellW = cssW / GRID;
+    const cellH = cssH / GRID;
+
+    const x = col * cellW;
+    const y = row * cellH;
+
+    // clear the area occupied by the cell (and a 1px extra margin for border)
+    // Because ctx transform maps CSS to device pixels, this clearRect is crisp.
+    this.ctx.clearRect(x - 1, y - 1, cellW + 2, cellH + 2);
+
+    // fill the cell based on state
+    this.drawCellFill(row, col);
+  }
+
+  private drawCellFill(row: number, col: number) {
+    const canvas = this.canvasRef.nativeElement;
+    const rect = canvas.getBoundingClientRect();
+    const cssW = rect.width;
+    const cssH = rect.height;
+
+    const cellW = cssW / GRID;
+    const cellH = cssH / GRID;
+
+    const x = col * cellW;
+    const y = row * cellH;
+
+    const idx = row * GRID + col;
+    const isFree = this.state[idx] === 1;
+
+    // fill style
+    const img = isFree ? this.imgFilledSeat : this.imgFreeSeat;
+    this.ctx.drawImage(img, x, y, cellW, cellH);
   }
 }
