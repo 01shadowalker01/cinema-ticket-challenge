@@ -4,6 +4,7 @@ import {
   Component,
   ElementRef,
   NgZone,
+  OnDestroy,
   ViewChild,
 } from '@angular/core';
 
@@ -16,7 +17,7 @@ const TOTAL_CELLS = GRID * GRID;
   styleUrls: ['./plan.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class PlanComponent implements AfterViewInit {
+export class PlanComponent implements AfterViewInit, OnDestroy {
   @ViewChild('canvas', { static: true })
   canvasRef!: ElementRef<HTMLCanvasElement>;
 
@@ -221,5 +222,18 @@ export class PlanComponent implements AfterViewInit {
     // fill style
     const img = isFree ? this.imgReservedSeat : this.imgFreeSeat;
     this.ctx.drawImage(img, x, y, cellW, cellH);
+  }
+
+  ngOnDestroy(): void {
+    this.destroyed = true;
+    // Disconnect observer and handlers
+    if (this.resizeObserver) {
+      this.resizeObserver.disconnect();
+      this.resizeObserver = undefined;
+    }
+    const canvas = this.canvasRef?.nativeElement;
+    if (canvas) {
+      canvas.removeEventListener('pointerdown', this.pointerHandler);
+    }
   }
 }
