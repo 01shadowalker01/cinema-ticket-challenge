@@ -74,7 +74,10 @@ export class PlanComponent implements OnInit, AfterViewInit, OnDestroy {
       this.setupResizeObserver();
       // initial sizing + draw
       this.onResize();
-      this.imgFreeSeat.onload = () => this.onResize(); // redraw once images are ready
+      this.imgFreeSeat.onload =
+        this.imgReservedSeat.onload =
+        this.imgSelectedSeat.onload =
+          () => this.onResize(); // redraw once images are ready
     });
   }
 
